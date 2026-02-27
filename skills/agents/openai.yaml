@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flow2API"
+  short_description: "Generate images and videos for creative tasks"
+  default_prompt: "Use $flow2api to create portrait or landscape images and videos from prompts."

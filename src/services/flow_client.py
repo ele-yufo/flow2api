@@ -4,6 +4,7 @@ import time
 import uuid
 import random
 import base64
+import os
 from typing import Dict, Any, Optional, List
 from curl_cffi.requests import AsyncSession
 from ..core.logger import debug_logger
@@ -21,93 +22,25 @@ class FlowClient:
         self.timeout = config.flow_timeout
         # 缓存每个账号的 User-Agent
         self._user_agent_cache = {}
+        self._stable_user_agent = os.environ.get(
+            "FLOW2API_CLIENT_USER_AGENT",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        )
 
-        # Default "real browser" headers (Android Chrome style) to reduce upstream 4xx/5xx instability.
-        # These will be applied as defaults (won't override caller-provided headers).
+        # Keep only fetch-mode headers; avoid contradictory client-hints/validation headers.
         self._default_client_headers = {
-            "sec-ch-ua-mobile": "?1",
-            "sec-ch-ua-platform": "\"Android\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
-            "sec-fetch-site": "cross-site",
-            "x-browser-channel": "stable",
-            "x-browser-copyright": "Copyright 2026 Google LLC. All Rights reserved.",
-            "x-browser-validation": "UujAs0GAwdnCJ9nvrswZ+O+oco0=",
-            "x-browser-year": "2026",
-            "x-client-data": "CJS2yQEIpLbJAQipncoBCNj9ygEIlKHLAQiFoM0BGP6lzwE="
+            "sec-fetch-site": "cross-site"
         }
 
     def _generate_user_agent(self, account_id: str = None) -> str:
-        """基于账号ID生成固定的 User-Agent
-        
-        Args:
-            account_id: 账号标识（如 email 或 token_id），相同账号返回相同 UA
-            
-        Returns:
-            User-Agent 字符串
-        """
-        # 如果没有提供账号ID，生成随机UA
-        if not account_id:
-            account_id = f"random_{random.randint(1, 999999)}"
-        
-        # 如果已缓存，直接返回
-        if account_id in self._user_agent_cache:
+        """返回稳定 User-Agent，避免打码浏览器与API请求UA不一致导致校验失败"""
+        if account_id and account_id in self._user_agent_cache:
             return self._user_agent_cache[account_id]
-        
-        # 使用账号ID作为随机种子，确保同一账号生成相同的UA
-        import hashlib
-        seed = int(hashlib.md5(account_id.encode()).hexdigest()[:8], 16)
-        rng = random.Random(seed)
-        
-        # Chrome 版本池
-        chrome_versions = ["130.0.0.0", "131.0.0.0", "132.0.0.0", "129.0.0.0"]
-        # Firefox 版本池
-        firefox_versions = ["133.0", "132.0", "131.0", "134.0"]
-        # Safari 版本池
-        safari_versions = ["18.2", "18.1", "18.0", "17.6"]
-        # Edge 版本池
-        edge_versions = ["130.0.0.0", "131.0.0.0", "132.0.0.0"]
-
-        # 操作系统配置
-        os_configs = [
-            # Windows
-            {
-                "platform": "Windows NT 10.0; Win64; x64",
-                "browsers": [
-                    lambda r: f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{r.choice(chrome_versions)} Safari/537.36",
-                    lambda r: f"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:{r.choice(firefox_versions).split('.')[0]}.0) Gecko/20100101 Firefox/{r.choice(firefox_versions)}",
-                    lambda r: f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{r.choice(chrome_versions)} Safari/537.36 Edg/{r.choice(edge_versions)}",
-                ]
-            },
-            # macOS
-            {
-                "platform": "Macintosh; Intel Mac OS X 10_15_7",
-                "browsers": [
-                    lambda r: f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{r.choice(chrome_versions)} Safari/537.36",
-                    lambda r: f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/{r.choice(safari_versions)} Safari/605.1.15",
-                    lambda r: f"Mozilla/5.0 (Macintosh; Intel Mac OS X 14.{r.randint(0, 7)}; rv:{r.choice(firefox_versions).split('.')[0]}.0) Gecko/20100101 Firefox/{r.choice(firefox_versions)}",
-                ]
-            },
-            # Linux
-            {
-                "platform": "X11; Linux x86_64",
-                "browsers": [
-                    lambda r: f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{r.choice(chrome_versions)} Safari/537.36",
-                    lambda r: f"Mozilla/5.0 (X11; Linux x86_64; rv:{r.choice(firefox_versions).split('.')[0]}.0) Gecko/20100101 Firefox/{r.choice(firefox_versions)}",
-                    lambda r: f"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:{r.choice(firefox_versions).split('.')[0]}.0) Gecko/20100101 Firefox/{r.choice(firefox_versions)}",
-                ]
-            }
-        ]
-
-        # 使用固定种子随机选择操作系统和浏览器
-        os_config = rng.choice(os_configs)
-        browser_generator = rng.choice(os_config["browsers"])
-        user_agent = browser_generator(rng)
-        
-        # 缓存结果
-        self._user_agent_cache[account_id] = user_agent
-        
-        return user_agent
+        if account_id:
+            self._user_agent_cache[account_id] = self._stable_user_agent
+        return self._stable_user_agent
 
     async def _make_request(
         self,
@@ -478,7 +411,7 @@ class FlowClient:
             at: Access Token
             project_id: 项目ID
             prompt: 提示词
-            model_name: GEM_PIX, GEM_PIX_2 或 IMAGEN_3_5
+            model_name: GEM_PIX, GEM_PIX_2, IMAGEN_3_5 或 NARWHAL
             aspect_ratio: 图片宽高比
             image_inputs: 参考图片列表(图生图时使用)
 

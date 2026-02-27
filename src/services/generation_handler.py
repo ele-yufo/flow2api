@@ -3,6 +3,7 @@ import asyncio
 import base64
 import json
 import time
+import re
 from typing import Optional, AsyncGenerator, List, Dict, Any
 from ..core.logger import debug_logger
 from ..core.config import config
@@ -127,6 +128,97 @@ MODEL_CONFIG = {
         "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT"
     },
 
+    # 图片生成 - NARWHAL (Nano Banana 2 / Gemini 3.1 Flash Image)
+    "nano-banana-2-landscape": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_LANDSCAPE"
+    },
+    "nano-banana-2-portrait": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT"
+    },
+    "nano-banana-2-square": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_SQUARE"
+    },
+    "nano-banana-2-four-three": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE"
+    },
+    "nano-banana-2-three-four": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT_THREE_FOUR"
+    },
+
+    # 图片生成 - NARWHAL (Nano Banana 2) 2K 放大版
+    "nano-banana-2-landscape-2k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_2K"
+    },
+    "nano-banana-2-portrait-2k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_2K"
+    },
+    "nano-banana-2-square-2k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_SQUARE",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_2K"
+    },
+    "nano-banana-2-four-three-2k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_2K"
+    },
+    "nano-banana-2-three-four-2k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT_THREE_FOUR",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_2K"
+    },
+
+    # 图片生成 - NARWHAL (Nano Banana 2) 4K 放大版
+    "nano-banana-2-landscape-4k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_4K"
+    },
+    "nano-banana-2-portrait-4k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_4K"
+    },
+    "nano-banana-2-square-4k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_SQUARE",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_4K"
+    },
+    "nano-banana-2-four-three-4k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_4K"
+    },
+    "nano-banana-2-three-four-4k": {
+        "type": "image",
+        "model_name": "NARWHAL",
+        "aspect_ratio": "IMAGE_ASPECT_RATIO_PORTRAIT_THREE_FOUR",
+        "upsample": "UPSAMPLE_IMAGE_RESOLUTION_4K"
+    },
+
     # ========== 文生视频 (T2V - Text to Video) ==========
     # 不支持上传图片，只使用文本提示词生成
 
@@ -234,6 +326,16 @@ MODEL_CONFIG = {
 
     # veo_3_1_i2v_s_fast_fl (需要新增横竖屏)
     "veo_3_1_i2v_s_fast_portrait_fl": {
+        "type": "video",
+        "video_type": "i2v",
+        "model_key": "veo_3_1_i2v_s_fast_portrait_fl",
+        "aspect_ratio": "VIDEO_ASPECT_RATIO_PORTRAIT",
+        "supports_images": True,
+        "min_images": 1,
+        "max_images": 2
+    },
+    # 兼容别名: veo_3_1_i2v_s_fast_fl_portrait -> veo_3_1_i2v_s_fast_portrait_fl
+    "veo_3_1_i2v_s_fast_fl_portrait": {
         "type": "video",
         "video_type": "i2v",
         "model_key": "veo_3_1_i2v_s_fast_portrait_fl",
@@ -1124,7 +1226,8 @@ class GenerationHandler:
                     # 只有首帧 - 需要将 model_key 中的 _fl_ 替换为 _
                     # 例如: veo_3_1_i2v_s_fast_fl_ultra_relaxed -> veo_3_1_i2v_s_fast_ultra_relaxed
                     #       veo_3_1_i2v_s_fast_portrait_fl_ultra_relaxed -> veo_3_1_i2v_s_fast_portrait_ultra_relaxed
-                    actual_model_key = model_config["model_key"].replace("_fl_", "_")
+                    # 移除 _fl 标记，兼容 _fl_ / _fl 结尾等情况
+                    actual_model_key = re.sub(r"_fl(?=_|$)", "", model_config["model_key"])
                     debug_logger.log_info(f"[I2V] 单帧模式，model_key: {model_config['model_key']} -> {actual_model_key}")
                     result = await self.flow_client.generate_video_start_image(
                         at=token.at,
@@ -1479,4 +1582,3 @@ class GenerationHandler:
         except Exception as e:
             # 日志记录失败不影响主流程
             debug_logger.log_error(f"Failed to log request: {e}")
-
