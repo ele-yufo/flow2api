@@ -383,7 +383,7 @@ class TokenBrowser:
         
         try:
             browser = await playwright.chromium.launch(
-                headless=True,
+                headless=False,
                 proxy=proxy_option,
                 args=[
                     '--disable-blink-features=AutomationControlled',
@@ -395,6 +395,7 @@ class TokenBrowser:
                     '--no-first-run',
                     '--no-zygote',
                     f'--window-size={width},{height}',
+                    '--window-position=-32000,-32000',
                     '--disable-infobars',
                     '--hide-scrollbars',
                 ]

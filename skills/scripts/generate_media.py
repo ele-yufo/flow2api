@@ -104,7 +104,7 @@ def discover_base_url(api_key: str) -> str:
                 return candidate
 
     # 3) Common local ports fallback
-    for port in [8000, 38000, 18282]:
+    for port in [18282, 8000, 38000]:
         candidate = f"http://127.0.0.1:{port}"
         if endpoint_works(candidate, api_key):
             return candidate
