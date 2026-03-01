@@ -731,7 +731,7 @@ class TokenBrowser:
                     }})();
                     </script></head><body></body></html>"""
                     await route.fulfill(status=200, content_type="text/html", body=html)
-                elif any(d in route.request.url for d in ["google.com", "gstatic.com", "recaptcha.net"]):
+                elif any(d in route.request.url for d in ["google.com", "gstatic.com", "gstatic.cn", "recaptcha.net"]):
                     await route.continue_()
                 else:
                     await route.abort()
@@ -739,7 +739,7 @@ class TokenBrowser:
             def handle_request_failed(request):
                 try:
                     failed_url = request.url or ""
-                    if not any(d in failed_url for d in ["google.com", "gstatic.com", "recaptcha.net"]):
+                    if not any(d in failed_url for d in ["google.com", "gstatic.com", "gstatic.cn", "recaptcha.net"]):
                         return
                     failure = request.failure or ""
                     debug_logger.log_warning(
@@ -874,7 +874,7 @@ class TokenBrowser:
             def handle_request_failed(request):
                 try:
                     failed_url = request.url or ""
-                    if not any(d in failed_url for d in ["google.com", "gstatic.com", "recaptcha.net", "antcpt.com"]):
+                    if not any(d in failed_url for d in ["google.com", "gstatic.com", "gstatic.cn", "recaptcha.net", "antcpt.com"]):
                         return
                     failure = request.failure or ""
                     debug_logger.log_warning(
