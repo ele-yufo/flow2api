@@ -383,7 +383,7 @@ class TokenBrowser:
         
         try:
             browser = await playwright.chromium.launch(
-                headless=False,
+                headless=True,
                 proxy=proxy_option,
                 args=[
                     '--disable-blink-features=AutomationControlled',
@@ -780,7 +780,7 @@ class TokenBrowser:
                 return None
             
             try:
-                await page.wait_for_function("typeof grecaptcha !== 'undefined'", timeout=15000)
+                await page.wait_for_function("typeof grecaptcha !== 'undefined' && grecaptcha.enterprise && typeof grecaptcha.enterprise.execute === 'function'", timeout=15000)
             except Exception as e:
                 debug_logger.log_warning(f"[BrowserCaptcha] Token-{self.token_id} grecaptcha 未就绪: {type(e).__name__}: {str(e)[:200]}")
                 return None
