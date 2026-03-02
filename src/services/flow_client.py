@@ -28,11 +28,11 @@ class FlowClient:
             default=None
         )
 
-        # Default "real browser" headers (Desktop Chrome style) to match patchright's Chromium engine.
+        # Default "real browser" headers (Android Chrome style) to reduce upstream 4xx/5xx instability.
         # These will be applied as defaults (won't override caller-provided headers).
         self._default_client_headers = {
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-ch-ua-mobile": "?1",
+            "sec-ch-ua-platform": "\"Android\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "cross-site",
