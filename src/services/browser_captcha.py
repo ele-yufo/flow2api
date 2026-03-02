@@ -200,12 +200,14 @@ class TokenBrowser:
         self._semaphore = asyncio.Semaphore(1)  # 同时只能有一个任务
         self._solve_count = 0
         self._error_count = 0
+        self._last_ua = None  # 记录最后使用的 UA，用于指纹同步
     
     async def _create_browser(self) -> tuple:
         """创建新浏览器实例（新 UA），返回 (playwright, browser, context)"""
         import random
         
         random_ua = random.choice(self.UA_LIST)
+        self._last_ua = random_ua  # 保存 UA 用于指纹同步
         base_w, base_h = random.choice(self.RESOLUTIONS)
         width, height = base_w, base_h - random.randint(0, 80)
         viewport = {"width": width, "height": height}
@@ -543,7 +545,40 @@ class BrowserCaptchaService:
     async def report_request_finished(self, browser_id: int = None): pass
     async def notify_generation_request_finished(self, browser_id: int = None): pass
     async def force_close_pending_browser(self): pass
-    async def get_fingerprint(self, browser_id: int = None): return None
+    async def get_fingerprint(self, browser_id: int = None):
+        """返回浏览器指纹，确保 API 请求 headers 与打码浏览器一致"""
+        async with self._browsers_lock:
+            browser = self._browsers.get(browser_id)
+            debug_logger.log_info(f"[BrowserCaptcha] get_fingerprint(browser_id={browser_id}): browser={browser is not None}, ua={getattr(browser, '_last_ua', 'N/A')[:60] if browser else 'N/A'}")
+            if browser and browser._last_ua:
+                ua = browser._last_ua
+                # 根据 UA 生成匹配的 Client Hints
+                if 'Windows' in ua:
+                    platform = '"Windows"'
+                elif 'Macintosh' in ua or 'Mac OS' in ua:
+                    platform = '"macOS"'
+                elif 'Linux' in ua:
+                    platform = '"Linux"'
+                else:
+                    platform = '"Windows"'
+                
+                # 提取 Chrome 版本号
+                import re
+                chrome_match = re.search(r'Chrome/(\d+)', ua)
+                if chrome_match:
+                    ver = chrome_match.group(1)
+                    sec_ch_ua = f'"Chromium";v="{ver}", "Google Chrome";v="{ver}", "Not-A.Brand";v="99"'
+                else:
+                    sec_ch_ua = '"Chromium";v="132", "Google Chrome";v="132", "Not-A.Brand";v="99"'
+                
+                return {
+                    'user_agent': ua,
+                    'sec_ch_ua': sec_ch_ua,
+                    'sec_ch_ua_mobile': '?0',
+                    'sec_ch_ua_platform': platform,
+                    'accept_language': 'en-US,en;q=0.9',
+                }
+        return None
     def get_last_fingerprint(self, browser_id: int = None): return None
     def get_stats(self): 
         base_stats = {
