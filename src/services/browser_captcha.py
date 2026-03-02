@@ -191,6 +191,18 @@ class TokenBrowser:
                     '--window-position=-32000,-32000',
                 ]
             )
+            
+            # macOS: 隐藏 Chrome 窗口，防止抢焦点和出现在 Dock
+            import subprocess, platform
+            if platform.system() == "Darwin":
+                try:
+                    subprocess.Popen([
+                        'osascript', '-e',
+                        'tell application "System Events" to set visible of '
+                        '(every process whose name contains "Chrome for Testing") to false'
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except: pass
+            
             context = await browser.new_context(
                 user_agent=random_ua,
                 viewport=viewport,
