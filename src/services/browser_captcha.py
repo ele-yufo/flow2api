@@ -394,6 +394,10 @@ class BrowserCaptchaService:
         
         # 并发限制将在 _load_browser_count 中根据配置设置
         self._token_semaphore = None
+        
+        # reCAPTCHA 速率限制 - 防止短时间内获取过多 token 导致评分下降
+        self._last_token_time = 0
+        self._token_cooldown = 5.0  # 最短间隔（秒）
     
     @classmethod
     async def get_instance(cls, db=None) -> 'BrowserCaptchaService':
@@ -473,6 +477,14 @@ class BrowserCaptchaService:
         """
         self._stats["req_total"] += 1
         
+        # 速率限制 - 确保 token 获取间隔不小于 _token_cooldown
+        now = time.time()
+        elapsed = now - self._last_token_time
+        if elapsed < self._token_cooldown:
+            wait_time = self._token_cooldown - elapsed
+            debug_logger.log_info(f"[BrowserCaptcha] 速率限制: 等待 {wait_time:.1f}s")
+            await asyncio.sleep(wait_time)
+        
         # 全局并发限制（如果已配置）
         if self._token_semaphore:
             async with self._token_semaphore:
@@ -481,6 +493,7 @@ class BrowserCaptchaService:
                 browser = await self._get_or_create_browser(browser_id)
                 
                 token = await browser.get_token(project_id, self.website_key, action)
+                self._last_token_time = time.time()
             
             if token:
                 self._stats["gen_ok"] += 1
@@ -495,6 +508,7 @@ class BrowserCaptchaService:
         browser = await self._get_or_create_browser(browser_id)
         
         token = await browser.get_token(project_id, self.website_key, action)
+        self._last_token_time = time.time()
         
         if token:
             self._stats["gen_ok"] += 1
